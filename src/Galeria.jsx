@@ -6,16 +6,21 @@ function Galeria() {
   const [actual, setActual] = useState(0);
   const [cargando, setCargando] = useState(false);
 
+  // --- CONFIGURACIÓN DE LA API ---
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+  // 1. Cargar imágenes al iniciar
   useEffect(() => {
-    fetch('http://localhost:3001/imagenes')
+    fetch(`${API_URL}/usuarios`) // Nota: En tu backend actual /usuarios devuelve la lista
       .then(res => res.json())
       .then(data => {
          if(Array.isArray(data) && data.length > 0) {
+            // Adaptamos los datos si vienen de la tabla usuarios o una tabla específica de fotos
             setImagenes(data);
          }
       })
       .catch(err => console.error("Error cargando galería:", err));
-  }, []);
+  }, [API_URL]);
 
   const siguiente = () => {
     if (imagenes.length > 0) {
@@ -29,22 +34,22 @@ function Galeria() {
     }
   };
 
+  // Carrusel automático
   useEffect(() => {
     if (imagenes.length === 0) return;
     const intervalo = setInterval(siguiente, 4000);
     return () => clearInterval(intervalo);
   }, [actual, imagenes]);
 
-  // --- FUNCIÓN DE SUBIDA CON FILTRO DE ARCHIVOS ---
+  // 2. Función de subida corregida para Render/Cloudinary
   const manejarSubida = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    // VALIDACIÓN DE SEGURIDAD EN EL FRONTEND
     const tiposPermitidos = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
     if (!tiposPermitidos.includes(file.type)) {
         alert("❌ Error: Solo puedes subir imágenes (JPG, PNG, WEBP).");
-        e.target.value = null; // Limpiar el input
+        e.target.value = null;
         return;
     }
 
@@ -53,7 +58,7 @@ function Galeria() {
     formData.append('archivo', file);
 
     try {
-        const respuesta = await fetch('http://localhost:3001/subir-imagen', {
+        const respuesta = await fetch(`${API_URL}/subir-imagen`, {
             method: 'POST',
             body: formData
         });
@@ -72,19 +77,21 @@ function Galeria() {
             alert('Error al subir: ' + data.message);
         }
     } catch (error) {
-        alert('Error de conexión');
+        console.error("Error de conexión:", error);
+        alert('Error de conexión con el servidor de imágenes.');
     } finally {
         setCargando(false);
         e.target.value = null; 
     }
   };
 
+  // 3. Función de borrado corregida
   const manejarBorrado = async (idToDelete, e) => {
     e.stopPropagation(); 
     if (!window.confirm("¿Estás seguro de que deseas eliminar esta imagen?")) return;
 
     try {
-        const respuesta = await fetch(`http://localhost:3001/borrar-imagen/${encodeURIComponent(idToDelete)}`, {
+        const respuesta = await fetch(`${API_URL}/borrar-imagen/${encodeURIComponent(idToDelete)}`, {
             method: 'DELETE'
         });
         const data = await respuesta.json();
@@ -100,13 +107,15 @@ function Galeria() {
             alert("No se pudo eliminar: " + data.message);
         }
     } catch (error) {
-        alert("Error de conexión al borrar");
+        alert("Error de conexión al intentar borrar.");
     }
   };
 
+  // --- RENDERIZADO Y ESTILOS ---
   return (
     <div style={{ display: 'flex', height: '100vh', width: '100vw', position: 'absolute', top: 0, left: 0, fontFamily: 'Arial, sans-serif' }}>
       
+      {/* Sidebar */}
       <div style={{ width: '30%', backgroundColor: '#fff8e1', padding: '20px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', borderRight: '2px solid #ffe0b2', overflowY: 'auto' }}>
         
         <h2 style={{ color: '#ff6f00', marginTop: 0 }}>📸 Mi Galería Cloud</h2>
@@ -116,7 +125,6 @@ function Galeria() {
         </Link>
 
         <div style={{ marginBottom: '25px', textAlign: 'center' }}>
-            {/* 1. SE AGREGA EL ATRIBUTO "accept" PARA FILTRAR EN EL EXPLORADOR DE ARCHIVOS */}
             <input 
                 type="file" 
                 id="fileInput" 
@@ -139,7 +147,7 @@ function Galeria() {
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: '10px' }}>
           {imagenes.map((img, index) => (
-            <div key={img.id} onClick={() => setActual(index)}
+            <div key={img.id || index} onClick={() => setActual(index)}
               style={{
                 position: 'relative', cursor: 'pointer', 
                 border: actual === index ? '3px solid #ff6f00' : '2px solid transparent',
@@ -165,6 +173,7 @@ function Galeria() {
         </div>
       </div>
 
+      {/* Visor Principal */}
       <div style={{ width: '70%', backgroundColor: '#263238', display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative' }}>
         {imagenes.length > 0 ? (
             <>

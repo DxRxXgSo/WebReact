@@ -57,7 +57,7 @@ function FormularioContacto() {
     setErrors({ ...errors, [name]: errorMsg });
   };
 
-  // 5. Manejador de envío (CONEXIÓN AL BACKEND)
+  // 5. Manejador de envío (CONEXIÓN AL BACKEND CORREGIDA)
   const handleSubmit = (e) => {
     e.preventDefault();
     const nuevosErrores = {};
@@ -72,8 +72,15 @@ function FormularioContacto() {
       setErrors(nuevosErrores);
       alert("Por favor corrige los errores antes de enviar.");
     } else {
-      // PETICIÓN FETCH AL BACKEND
-      fetch('http://localhost:3001/contacto', {
+      
+      // --- LÓGICA DE CONEXIÓN DINÁMICA ---
+      // Si el navegador detecta que estás en localhost, usa el puerto 3001. 
+      // Si no, usa tu URL de Render.
+      const backendURL = window.location.hostname === 'localhost' 
+        ? 'http://localhost:3001/contacto' 
+        : 'https://db-proyecto-97sm.onrender.com/contacto'; 
+
+      fetch(backendURL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)

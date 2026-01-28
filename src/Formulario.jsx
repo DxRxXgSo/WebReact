@@ -9,6 +9,9 @@ function Formulario() {
   const [captchaToken, setCaptchaToken] = useState(null)
   const captchaRef = useRef(null)
 
+  // --- CONFIGURACIÓN DE LA API ---
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
   const onChangeCaptcha = (token) => {
     setCaptchaToken(token);
   }
@@ -16,7 +19,7 @@ function Formulario() {
   const manejarEnvio = (e) => {
     e.preventDefault();
 
-    // Validación básica antes de enviar
+    // Validación básica
     if (!nombre.trim()) {
       alert("Por favor, ingresa un nombre válido.");
       return;
@@ -27,8 +30,8 @@ function Formulario() {
       return;
     }
 
-    // Enviamos nombre y token al backend (Puerto 3001)
-    fetch('http://localhost:3001/usuarios', {
+    // Petición al backend en Render
+    fetch(`${API_URL}/usuarios`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
@@ -40,23 +43,22 @@ function Formulario() {
     .then(data => {
       if(data.success) {
           setMensaje("¡Nombre guardado con éxito! ✅");
-          setNombre(''); // Limpiamos el input
-          setCaptchaToken(null); // Limpiamos el token en el estado
-          if (captchaRef.current) captchaRef.current.reset(); // Reseteamos el widget de Google
+          setNombre(''); 
+          setCaptchaToken(null); 
+          if (captchaRef.current) captchaRef.current.reset(); 
 
           setTimeout(() => {
             setMensaje('');
           }, 3000);
       } else {
           alert("Error: " + data.message);
-          // Si el captcha falló en el backend, reseteamos el widget
           if (captchaRef.current) captchaRef.current.reset();
           setCaptchaToken(null);
       }
     })
     .catch(err => {
       console.error("Error de conexión:", err);
-      alert("No se pudo conectar con el servidor. Asegúrate de que el backend esté corriendo.");
+      alert("No se pudo conectar con el servidor. Verifica que el backend esté 'Live' en Render.");
     });
   }
 

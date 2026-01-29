@@ -9,13 +9,13 @@ function Galeria() {
   // --- CONFIGURACIÓN DE LA API ---
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
-  // 1. Cargar imágenes al iniciar
+  // 1. Cargar imágenes al iniciar (Corregido de /usuarios a /imagenes)
   useEffect(() => {
-    fetch(`${API_URL}/usuarios`) // Nota: En tu backend actual /usuarios devuelve la lista
+    fetch(`${API_URL}/imagenes`) 
       .then(res => res.json())
       .then(data => {
-         if(Array.isArray(data) && data.length > 0) {
-            // Adaptamos los datos si vienen de la tabla usuarios o una tabla específica de fotos
+         // Verificamos que los datos sean un array antes de guardar
+         if(Array.isArray(data)) {
             setImagenes(data);
          }
       })
@@ -41,11 +41,12 @@ function Galeria() {
     return () => clearInterval(intervalo);
   }, [actual, imagenes]);
 
-  // 2. Función de subida corregida para Render/Cloudinary
+  // 2. Función de subida corregida
   const manejarSubida = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
+    // Validación de tipos de imagen
     const tiposPermitidos = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
     if (!tiposPermitidos.includes(file.type)) {
         alert("❌ Error: Solo puedes subir imágenes (JPG, PNG, WEBP).");
@@ -70,6 +71,7 @@ function Galeria() {
                 url: data.url,
                 titulo: file.name
             };
+            // Agregamos la nueva imagen al inicio de la lista
             setImagenes([nuevaImagen, ...imagenes]);
             setActual(0);
             alert("¡Imagen subida con éxito! 🎉");
@@ -85,12 +87,13 @@ function Galeria() {
     }
   };
 
-  // 3. Función de borrado corregida
+  // 3. Función de borrado corregida para usar el parámetro :id en la URL
   const manejarBorrado = async (idToDelete, e) => {
     e.stopPropagation(); 
     if (!window.confirm("¿Estás seguro de que deseas eliminar esta imagen?")) return;
 
     try {
+        // Concatenamos el id a la URL como espera el backend
         const respuesta = await fetch(`${API_URL}/borrar-imagen/${encodeURIComponent(idToDelete)}`, {
             method: 'DELETE'
         });
@@ -99,6 +102,7 @@ function Galeria() {
         if (data.success) {
             const nuevasImagenes = imagenes.filter(img => img.id !== idToDelete);
             setImagenes(nuevasImagenes);
+            // Ajustamos el índice si borramos la imagen actual
             if (actual >= nuevasImagenes.length && nuevasImagenes.length > 0) {
                 setActual(nuevasImagenes.length - 1);
             }
@@ -107,15 +111,15 @@ function Galeria() {
             alert("No se pudo eliminar: " + data.message);
         }
     } catch (error) {
+        console.error("Error al borrar:", error);
         alert("Error de conexión al intentar borrar.");
     }
   };
 
-  // --- RENDERIZADO Y ESTILOS ---
   return (
     <div style={{ display: 'flex', height: '100vh', width: '100vw', position: 'absolute', top: 0, left: 0, fontFamily: 'Arial, sans-serif' }}>
       
-      {/* Sidebar */}
+      {/* Sidebar de miniaturas */}
       <div style={{ width: '30%', backgroundColor: '#fff8e1', padding: '20px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', borderRight: '2px solid #ffe0b2', overflowY: 'auto' }}>
         
         <h2 style={{ color: '#ff6f00', marginTop: 0 }}>📸 Mi Galería Cloud</h2>

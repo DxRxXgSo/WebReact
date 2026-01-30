@@ -1,4 +1,4 @@
-require('dotenv').config(); // Importante para leer las variables del archivo .env local
+require('dotenv').config(); 
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
@@ -22,13 +22,12 @@ const upload = multer({ storage: storage });
 
 // 2. CONEXIÓN A POSTGRESQL (Render)
 const pool = new Pool({
-    connectionString: process.env.DATABASE_URL ,
+    connectionString: process.env.DATABASE_URL,
     ssl: {
         rejectUnauthorized: false 
     }
 });
 
-// Verificación de conexión
 pool.connect((err) => {
     if (err) {
         console.error('❌ Error de conexión:', err.stack);
@@ -37,7 +36,7 @@ pool.connect((err) => {
     }
 });
 
-// 3. RUTAS DE USUARIOS (Login rápido)
+// 3. RUTAS DE USUARIOS
 app.get('/usuarios', async (req, res) => {
     try {
         const result = await pool.query('SELECT * FROM usuarios ORDER BY id DESC');
@@ -91,6 +90,28 @@ app.post('/contacto', async (req, res) => {
 });
 
 // 5. RUTAS DE IMÁGENES (Cloudinary)
+
+// --- NUEVA RUTA: OBTENER IMÁGENES (Soluciona el error 404 del GET) ---
+app.get('/imagenes', async (req, res) => {
+    try {
+        const { resources } = await cloudinary.search
+            .expression('folder:mi_proyecto_react') // Busca en tu carpeta de Cloudinary
+            .sort_by('created_at', 'desc')
+            .execute();
+
+        const imagenes = resources.map(img => ({
+            id: img.public_id,
+            url: img.secure_url,
+            titulo: img.filename
+        }));
+        
+        res.json(imagenes);
+    } catch (error) {
+        console.error("Error al obtener imágenes:", error);
+        res.status(500).json({ success: false, message: 'Error al obtener imágenes de la nube' });
+    }
+});
+
 app.post('/subir-imagen', (req, res) => {
     upload.single('archivo')(req, res, (err) => {
         if (err) return res.status(400).json({ success: false, message: err.message });
@@ -100,7 +121,6 @@ app.post('/subir-imagen', (req, res) => {
             { folder: "mi_proyecto_react" }, 
             (error, result) => {
                 if (error) return res.status(500).json({ success: false, message: 'Error Cloudinary' });
-                // Devolvemos secure_url para la imagen y public_id para poder borrarla después
                 res.json({ success: true, url: result.secure_url, id: result.public_id });
             }
         );
@@ -108,7 +128,6 @@ app.post('/subir-imagen', (req, res) => {
     });
 });
 
-// --- NUEVA RUTA: BORRAR IMAGEN (Para que el botón '✕' de la Galería funcione) ---
 app.delete('/borrar-imagen/:id', async (req, res) => {
     const publicId = req.params.id;
     try {

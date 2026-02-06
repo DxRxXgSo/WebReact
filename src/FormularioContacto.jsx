@@ -2,309 +2,205 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 
 function FormularioContacto() {
-  // 1. Estados para guardar los valores
+
+  /* =========================
+     1. ESTADO
+  ========================== */
   const [formData, setFormData] = useState({
     nombre: '',
     email: '',
     telefono: '',
-    fechaNacimiento: '',
+    fecha_nacimiento: '',
     mensaje: ''
   });
 
-  // 2. Estados para guardar los mensajes de error
   const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
 
-  // 3. Función de Validación
-  const validar = (nombre, valor) => {
-    switch (nombre) {
+  /* =========================
+     2. VALIDACIONES
+  ========================== */
+  const validar = (campo, valor) => {
+    switch (campo) {
       case 'nombre':
-        if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/.test(valor)) return "Solo se permiten letras.";
-        if (valor.length < 2) return "Mínimo 2 caracteres.";
-        return "";
+        if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/.test(valor)) return 'Solo letras.';
+        if (valor.trim().length < 2) return 'Mínimo 2 caracteres.';
+        return '';
+
       case 'email':
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(valor)) return "Correo inválido.";
-        return "";
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(valor)) return 'Correo inválido.';
+        return '';
+
       case 'telefono':
-        if (!/^\d+$/.test(valor)) return "Solo se permiten números.";
-        if (valor.length !== 10) return "Debe tener exactamente 10 dígitos.";
-        return "";
-      case 'fechaNacimiento':
-        if (!valor) return "La fecha es obligatoria.";
+        if (valor && !/^\d{10}$/.test(valor)) return 'Debe tener 10 dígitos.';
+        return '';
+
+      case 'fecha_nacimiento':
+        if (!valor) return '';
         const fecha = new Date(valor);
-        const hoy = new Date();
-        const edad = hoy.getFullYear() - fecha.getFullYear();
-        if (edad > 200 || edad < 0) return "La fecha no es válida (Máx 200 años).";
-        return "";
+        if (isNaN(fecha.getTime())) return 'Fecha no válida.';
+        return '';
+
       case 'mensaje':
-        if (valor.length < 15) return "El mensaje es muy corto (Mínimo 15).";
-        return "";
+        if (valor.trim().length < 15) return 'Mínimo 15 caracteres.';
+        return '';
+
       default:
-        return "";
+        return '';
     }
   };
 
-  // 4. Manejador de cambios
+  /* =========================
+     3. HANDLE CHANGE
+  ========================== */
   const handleChange = (e) => {
     const { name, value } = e.target;
-    // Límites de longitud
+
     if (name === 'telefono' && value.length > 10) return;
     if (name === 'nombre' && value.length > 50) return;
-    if (name === 'mensaje' && value.length > 500) return;
     if (name === 'email' && value.length > 100) return;
+    if (name === 'mensaje' && value.length > 500) return;
 
-    setFormData({ ...formData, [name]: value });
-    const errorMsg = validar(name, value);
-    setErrors({ ...errors, [name]: errorMsg });
+    setFormData(prev => ({ ...prev, [name]: value }));
+    setErrors(prev => ({ ...prev, [name]: validar(name, value) }));
   };
 
-  // 5. Manejador de envío (CONEXIÓN AL BACKEND CORREGIDA)
-  const handleSubmit = (e) => {
+  /* =========================
+     4. ENVÍO AL BACKEND
+  ========================== */
+  const handleSubmit = async (e) => {
     e.preventDefault();
+
     const nuevosErrores = {};
-    
-    // Validar todos los campos antes de enviar
-    Object.keys(formData).forEach((key) => {
-      const error = validar(key, formData[key]);
-      if (error) nuevosErrores[key] = error;
+    Object.keys(formData).forEach(campo => {
+      const error = validar(campo, formData[campo]);
+      if (error) nuevosErrores[campo] = error;
     });
 
     if (Object.keys(nuevosErrores).length > 0) {
       setErrors(nuevosErrores);
-      alert("Por favor corrige los errores antes de enviar.");
-    } else {
-      
-      // --- LÓGICA DE CONEXIÓN DINÁMICA ---
-      // Si el navegador detecta que estás en localhost, usa el puerto 3001. 
-      // Si no, usa tu URL de Render.
-      const backendURL = window.location.hostname === 'localhost' 
-        ? 'http://localhost:3001/contacto' 
-        : 'https://db-proyecto-97sm.onrender.com'; 
+      alert('Corrige los errores antes de enviar.');
+      return;
+    }
 
-      fetch(backendURL, {
+    setLoading(true);
+
+    const API_URL = import.meta.env.DEV
+      ? 'http://localhost:3001/contacto'
+      : 'https://db-proyecto-97sm.onrender.com/contacto';
+
+    try {
+      const res = await fetch(API_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify(formData)
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          alert("¡Mensaje enviado y guardado con éxito! 🚀");
-          // Limpiar el formulario tras éxito
-          setFormData({
-            nombre: '',
-            email: '',
-            telefono: '',
-            fechaNacimiento: '',
-            mensaje: ''
-          });
-          setErrors({});
-        } else {
-          alert("Error del servidor: " + data.message);
-        }
-      })
-      .catch(err => {
-        console.error("Error de conexión:", err);
-        alert("No se pudo conectar con el servidor. Revisa que el backend esté encendido.");
       });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Error del servidor');
+      }
+
+      alert('¡Mensaje enviado correctamente! 🚀');
+
+      setFormData({
+        nombre: '',
+        email: '',
+        telefono: '',
+        fecha_nacimiento: '',
+        mensaje: ''
+      });
+      setErrors({});
+
+    } catch (error) {
+      console.error(error);
+      alert('No se pudo conectar con el servidor');
+    } finally {
+      setLoading(false);
     }
   };
 
-  // --- ESTILOS PASTEL ---
+  /* =========================
+     5. ESTILOS
+  ========================== */
   const styles = {
     container: {
       backgroundColor: '#fff0e6',
-      color: '#4a4a4a',
       minHeight: '100vh',
       width: '100vw',
-      margin: 0,
       display: 'flex',
-      flexDirection: 'column',
+      justifyContent: 'center',
       alignItems: 'center',
-      paddingTop: '40px',
-      paddingBottom: '40px',
-      fontFamily: 'Arial, sans-serif',
-      boxSizing: 'border-box',
-      position: 'absolute',
-      top: 0,
-      left: 0
+      fontFamily: 'Arial'
     },
     formCard: {
-      backgroundColor: '#ffffff',
+      backgroundColor: '#fff',
       padding: '30px',
       borderRadius: '15px',
       width: '90%',
       maxWidth: '500px',
-      boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
-      border: '1px solid #eee'
+      boxShadow: '0 4px 15px rgba(0,0,0,.1)'
     },
-    label: {
-      display: 'block',
-      marginBottom: '5px',
-      fontWeight: 'bold',
-      color: '#4a4a4a'
-    },
+    label: { fontWeight: 'bold', marginTop: '10px' },
     input: {
       width: '100%',
       padding: '12px',
       borderRadius: '8px',
       border: '1px solid #ddd',
-      backgroundColor: '#f9f9f9',
-      color: '#333',
-      fontSize: '16px',
-      boxSizing: 'border-box',
-      outline: 'none',
-      transition: 'border-color 0.3s'
+      marginBottom: '5px'
     },
-    errorText: {
-      color: '#ff6b6b',
-      fontSize: '12px',
-      marginTop: '5px'
-    },
-    counter: {
-      float: 'right',
-      fontSize: '12px',
-      color: '#999'
-    },
+    error: { color: '#ff6b6b', fontSize: '12px' },
     button: {
       width: '100%',
       padding: '15px',
       backgroundColor: '#9575cd',
-      color: 'white',
+      color: '#fff',
       border: 'none',
       borderRadius: '8px',
-      fontSize: '16px',
-      fontWeight: 'bold',
-      cursor: 'pointer',
       marginTop: '20px',
-      transition: 'background 0.3s',
-      boxSizing: 'border-box',
-      boxShadow: '0 4px 6px rgba(149, 117, 205, 0.3)'
+      fontSize: '16px',
+      cursor: loading ? 'not-allowed' : 'pointer',
+      opacity: loading ? 0.7 : 1
     }
   };
 
-  const asteriskColor = '#ff6b6b';
-  const normalBorder = '#ddd';
-
+  /* =========================
+     6. RENDER
+  ========================== */
   return (
     <div style={styles.container}>
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
-        <div style={{ 
-          backgroundColor: '#f8bbd0', 
-          borderRadius: '50%', 
-          width: '50px', 
-          height: '50px', 
-          display: 'flex', 
-          justifyContent: 'center', 
-          alignItems: 'center', 
-          marginRight: '15px',
-          fontSize: '24px',
-          color: 'white'
-        }}>📄</div>
-        <div>
-          <h2 style={{ margin: 0, color: '#5d4037' }}>Formulario de Contacto</h2>
-          <span style={{ color: '#999', fontSize: '14px' }}>Todos los campos son obligatorios</span>
-        </div>
-      </div>
+      <form style={styles.formCard} onSubmit={handleSubmit} noValidate>
 
-      <form style={styles.formCard} onSubmit={handleSubmit}>
-        
-        {/* Nombre */}
-        <div style={{ marginBottom: '20px' }}>
-          <label style={styles.label}>
-            👤 Nombre completo <span style={{color: asteriskColor}}>*</span>
-            <span style={styles.counter}>{formData.nombre.length}/50</span>
-          </label>
-          <input 
-            type="text" 
-            name="nombre"
-            placeholder="Juan Pérez" 
-            value={formData.nombre}
-            onChange={handleChange}
-            style={{...styles.input, borderColor: errors.nombre ? asteriskColor : normalBorder}}
-          />
-          {errors.nombre && <div style={styles.errorText}>{errors.nombre}</div>}
-        </div>
+        <label style={styles.label}>Nombre</label>
+        <input style={styles.input} name="nombre" value={formData.nombre} onChange={handleChange} />
+        {errors.nombre && <div style={styles.error}>{errors.nombre}</div>}
 
-        {/* Email */}
-        <div style={{ marginBottom: '20px' }}>
-          <label style={styles.label}>
-            ✉️ Correo electrónico <span style={{color: asteriskColor}}>*</span>
-            <span style={styles.counter}>{formData.email.length}/100</span>
-          </label>
-          <input 
-            type="email" 
-            name="email"
-            placeholder="juan@ejemplo.com" 
-            value={formData.email}
-            onChange={handleChange}
-            style={{...styles.input, borderColor: errors.email ? asteriskColor : normalBorder}}
-          />
-          {errors.email && <div style={styles.errorText}>{errors.email}</div>}
-        </div>
+        <label style={styles.label}>Correo</label>
+        <input style={styles.input} name="email" value={formData.email} onChange={handleChange} />
+        {errors.email && <div style={styles.error}>{errors.email}</div>}
 
-        {/* Teléfono */}
-        <div style={{ marginBottom: '20px' }}>
-          <label style={styles.label}>
-            📞 Teléfono <span style={{color: asteriskColor}}>*</span>
-            <span style={styles.counter}>{formData.telefono.length}/10</span>
-          </label>
-          <input 
-            type="text" 
-            name="telefono"
-            placeholder="5512345678" 
-            value={formData.telefono}
-            onChange={handleChange}
-            style={{...styles.input, borderColor: errors.telefono ? asteriskColor : normalBorder}}
-          />
-          {errors.telefono && <div style={styles.errorText}>{errors.telefono}</div>}
-        </div>
+        <label style={styles.label}>Teléfono</label>
+        <input style={styles.input} name="telefono" value={formData.telefono} onChange={handleChange} />
+        {errors.telefono && <div style={styles.error}>{errors.telefono}</div>}
 
-        {/* Fecha */}
-        <div style={{ marginBottom: '20px' }}>
-          <label style={styles.label}>
-            📅 Fecha de nacimiento <span style={{color: asteriskColor}}>*</span>
-          </label>
-          <input 
-            type="date" 
-            name="fechaNacimiento"
-            value={formData.fechaNacimiento}
-            onChange={handleChange}
-            style={{...styles.input, borderColor: errors.fechaNacimiento ? asteriskColor : normalBorder}}
-          />
-          {errors.fechaNacimiento && <div style={styles.errorText}>{errors.fechaNacimiento}</div>}
-        </div>
+        <label style={styles.label}>Fecha de nacimiento</label>
+        <input style={styles.input} type="date" name="fecha_nacimiento" value={formData.fecha_nacimiento} onChange={handleChange} />
 
-        {/* Mensaje */}
-        <div style={{ marginBottom: '20px' }}>
-          <label style={styles.label}>
-            💬 Mensaje <span style={{color: asteriskColor}}>*</span>
-            <span style={styles.counter}>{formData.mensaje.length}/500</span>
-          </label>
-          <textarea 
-            name="mensaje"
-            rows="4"
-            placeholder="Escribe tu mensaje aquí..."
-            value={formData.mensaje}
-            onChange={handleChange}
-            style={{
-              ...styles.input, 
-              fontFamily: 'Arial', 
-              resize:'vertical', 
-              borderColor: errors.mensaje ? asteriskColor : normalBorder
-            }}
-          />
-          {errors.mensaje && <div style={styles.errorText}>{errors.mensaje}</div>}
-        </div>
+        <label style={styles.label}>Mensaje</label>
+        <textarea style={styles.input} rows="4" name="mensaje" value={formData.mensaje} onChange={handleChange} />
+        {errors.mensaje && <div style={styles.error}>{errors.mensaje}</div>}
 
-        <button type="submit" style={styles.button}>
-          🚀 Enviar Formulario
+        <button style={styles.button} disabled={loading}>
+          {loading ? 'Enviando...' : 'Enviar'}
         </button>
 
-        <div style={{ marginTop: '30px', textAlign: 'center', borderTop: '1px solid #eee', paddingTop: '20px' }}>
-            <Link to="/bienvenida" style={{ color: '#9575cd', textDecoration: 'none', fontWeight: 'bold' }}>
-                ← Volver al Inicio
-            </Link>
+        <div style={{ textAlign: 'center', marginTop: '20px' }}>
+          <Link to="/bienvenida">← Volver</Link>
         </div>
+
       </form>
     </div>
   );

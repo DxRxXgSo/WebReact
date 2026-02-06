@@ -1,4 +1,4 @@
-require('dotenv').config(); 
+require('dotenv').config();
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
@@ -10,92 +10,151 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// 1. CONFIGURACIÓN DE CLOUDINARY
-cloudinary.config({ 
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME, 
-    api_key: process.env.CLOUDINARY_API_KEY, 
+/* ===========================
+   1. CLOUDINARY
+=========================== */
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
     api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
+const upload = multer({ storage: multer.memoryStorage() });
 
-// 2. CONEXIÓN A POSTGRESQL (Render)
+/* ===========================
+   2. POSTGRESQL (RENDER)
+=========================== */
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: {
-        rejectUnauthorized: false 
-    }
+    ssl: { rejectUnauthorized: false }
 });
 
-pool.connect((err) => {
+pool.connect(err => {
     if (err) {
-        console.error('❌ Error de conexión:', err.stack);
+        console.error('❌ Error de conexión a PostgreSQL:', err);
     } else {
-        console.log('✅ Conexión establecida con PostgreSQL en Render');
+        console.log('✅ Conectado a PostgreSQL (Render)');
     }
 });
 
-// 3. RUTAS DE USUARIOS
+/* ===========================
+   3. USUARIOS
+=========================== */
 app.get('/usuarios', async (req, res) => {
     try {
-        const result = await pool.query('SELECT * FROM usuarios ORDER BY id DESC');
-        res.json(result.rows);
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Error al obtener datos' });
+        const { rows } = await pool.query(
+            'SELECT * FROM usuarios ORDER BY id DESC'
+        );
+        res.json(rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Error al obtener usuarios' });
     }
 });
 
 app.post('/usuarios', async (req, res) => {
     const { nombre, token } = req.body;
-    if (!token) return res.status(400).json({ success: false, message: "Falta el Captcha" });
-    if (!nombre) return res.status(400).json({ success: false, message: "El nombre es obligatorio" });
 
-    const SECRET_KEY = process.env.VITE_RECAPTCHA_SECRET_KEY; 
+    if (!token) {
+        return res.status(400).json({ success: false, message: 'Falta el captcha' });
+    }
+
+    if (!nombre) {
+        return res.status(400).json({ success: false, message: 'El nombre es obligatorio' });
+    }
 
     try {
-        const response = await axios.post(
-            `https://www.google.com/recaptcha/api/siteverify?secret=${SECRET_KEY}&response=${token}`
+        const captcha = await axios.post(
+            `https://www.google.com/recaptcha/api/siteverify`,
+            null,
+            {
+                params: {
+                    secret: process.env.VITE_RECAPTCHA_SECRET_KEY,
+                    response: token
+                }
+            }
         );
 
-        if (!response.data.success) {
-            return res.status(400).json({ success: false, message: "Captcha inválido" });
+        if (!captcha.data.success) {
+            return res.status(400).json({ success: false, message: 'Captcha inválido' });
         }
 
-        const sql = 'INSERT INTO usuarios (nombre) VALUES ($1) RETURNING *';
-        await pool.query(sql, [nombre]);
-        return res.json({ success: true, message: "Usuario guardado exitosamente" });
+        await pool.query(
+            'INSERT INTO usuarios (nombre) VALUES ($1)',
+            [nombre]
+        );
+
+        res.json({ success: true, message: 'Usuario guardado correctamente' });
+
     } catch (error) {
-        console.error("Error en servidor:", error);
-        return res.status(500).json({ success: false, message: "Error de servidor" });
+        console.error('Error usuarios:', error);
+        res.status(500).json({ success: false, message: 'Error del servidor' });
     }
 });
 
-// 4. RUTA: FORMULARIO DE CONTACTO
+/* ===========================
+   4. CONTACTO (CORREGIDO)
+=========================== */
 app.post('/contacto', async (req, res) => {
-    const { nombre, email, telefono, fechaNacimiento, mensaje } = req.body;
+    const {
+        nombre,
+        email,
+        telefono,
+        fecha_nacimiento,
+        mensaje
+    } = req.body;
+
+    // Validaciones
+    if (!nombre || !email || !mensaje) {
+        return res.status(400).json({
+            success: false,
+            message: 'Nombre, email y mensaje son obligatorios'
+        });
+    }
+
+    if (!email.includes('@')) {
+        return res.status(400).json({
+            success: false,
+            message: 'Email inválido'
+        });
+    }
+
     try {
         const sql = `
-            INSERT INTO contactos (nombre, email, telefono, fecha_nacimiento, mensaje) 
-            VALUES ($1, $2, $3, $4, $5) RETURNING *
+            INSERT INTO contactos
+            (nombre, email, telefono, fecha_nacimiento, mensaje)
+            VALUES ($1, $2, $3, $4, $5)
         `;
-        const values = [nombre, email, telefono, fechaNacimiento, mensaje];
-        await pool.query(sql, values);
-        res.json({ success: true, message: "Mensaje guardado correctamente" });
+
+        await pool.query(sql, [
+            nombre,
+            email,
+            telefono || null,
+            fecha_nacimiento || null,
+            mensaje
+        ]);
+
+        res.json({
+            success: true,
+            message: 'Mensaje enviado correctamente'
+        });
+
     } catch (error) {
-        console.error("Error al guardar contacto:", error);
-        res.status(500).json({ success: false, message: "Error en la base de datos" });
+        console.error('Error contacto:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error al guardar el mensaje'
+        });
     }
 });
 
-// 5. RUTAS DE IMÁGENES (Cloudinary)
-
-// --- NUEVA RUTA: OBTENER IMÁGENES (Soluciona el error 404 del GET) ---
+/* ===========================
+   5. IMÁGENES (CLOUDINARY)
+=========================== */
 app.get('/imagenes', async (req, res) => {
     try {
         const { resources } = await cloudinary.search
-            .expression('folder:mi_proyecto_react') // Busca en tu carpeta de Cloudinary
+            .expression('folder:mi_proyecto_react')
             .sort_by('created_at', 'desc')
             .execute();
 
@@ -104,47 +163,52 @@ app.get('/imagenes', async (req, res) => {
             url: img.secure_url,
             titulo: img.filename
         }));
-        
+
         res.json(imagenes);
     } catch (error) {
-        console.error("Error al obtener imágenes:", error);
-        res.status(500).json({ success: false, message: 'Error al obtener imágenes de la nube' });
+        console.error(error);
+        res.status(500).json({ message: 'Error al obtener imágenes' });
     }
 });
 
-app.post('/subir-imagen', (req, res) => {
-    upload.single('archivo')(req, res, (err) => {
-        if (err) return res.status(400).json({ success: false, message: err.message });
-        if (!req.file) return res.status(400).json({ success: false, message: 'No hay archivo' });
+app.post('/subir-imagen', upload.single('archivo'), (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ message: 'No hay archivo' });
+    }
 
-        const uploadStream = cloudinary.uploader.upload_stream(
-            { folder: "mi_proyecto_react" }, 
-            (error, result) => {
-                if (error) return res.status(500).json({ success: false, message: 'Error Cloudinary' });
-                res.json({ success: true, url: result.secure_url, id: result.public_id });
+    const stream = cloudinary.uploader.upload_stream(
+        { folder: 'mi_proyecto_react' },
+        (error, result) => {
+            if (error) {
+                return res.status(500).json({ message: 'Error Cloudinary' });
             }
-        );
-        uploadStream.end(req.file.buffer);
-    });
+            res.json({
+                success: true,
+                url: result.secure_url,
+                id: result.public_id
+            });
+        }
+    );
+
+    stream.end(req.file.buffer);
 });
 
 app.delete('/borrar-imagen/:id', async (req, res) => {
-    const publicId = req.params.id;
     try {
-        const result = await cloudinary.uploader.destroy(publicId);
-        if (result.result === 'ok') {
-            res.json({ success: true, message: "Imagen eliminada de la nube" });
-        } else {
-            res.status(400).json({ success: false, message: "No se pudo borrar o no existe" });
-        }
+        const result = await cloudinary.uploader.destroy(req.params.id);
+        res.json({
+            success: result.result === 'ok'
+        });
     } catch (error) {
-        console.error("Error al borrar:", error);
-        res.status(500).json({ success: false, message: "Error en servidor de imágenes" });
+        console.error(error);
+        res.status(500).json({ message: 'Error al borrar imagen' });
     }
 });
 
-// 6. INICIO DEL SERVIDOR
-const PORT = process.env.PORT || 3001; 
+/* ===========================
+   6. SERVER
+=========================== */
+const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-    console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
+    console.log(`🚀 Servidor activo en puerto ${PORT}`);
 });

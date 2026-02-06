@@ -78,7 +78,7 @@ function FormularioContacto() {
       // Si no, usa tu URL de Render.
       const backendURL = window.location.hostname === 'localhost' 
         ? 'http://localhost:3001/contacto' 
-        : 'https://db-proyecto-97sm.onrender.com/contacto'; 
+        : 'https://db-proyecto-97sm.onrender.com'; 
 
       fetch(backendURL, {
         method: 'POST',

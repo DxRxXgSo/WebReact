@@ -7,7 +7,7 @@ function Galeria() {
   const [cargando, setCargando] = useState(false);
 
   // --- CONFIGURACIÓN DE LA API ---
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+  const API_URL = import.meta.env.VITE_API_URL || 'https://webreact-b6vd.onrender.com';
 
   // 1. Cargar imágenes al iniciar (Corregido de /usuarios a /imagenes)
   useEffect(() => {

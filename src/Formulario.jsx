@@ -10,7 +10,7 @@ function Formulario() {
   const captchaRef = useRef(null)
 
   // --- CONFIGURACIÓN DE LA API ---
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+  const API_URL = import.meta.env.VITE_API_URL || 'https://webreact-b6vd.onrender.com';
 
   const onChangeCaptcha = (token) => {
     setCaptchaToken(token);
